@@ -1,210 +1,99 @@
-# @aldofrota/dd-trace-decorator
+# DD-Trace Decorator
 
-A TypeScript decorator to facilitate tracing with Datadog APM, allowing you to automatically add spans to your class methods.
+Decorator para facilitar o tracing com Datadog em aplicações TypeScript.
 
-## 📦 Installation
+## Configuração
 
-```bash
-npm install @aldofrota/dd-trace-decorator
-```
+### 1. TypeScript
 
-## 🚀 Usage
+O projeto já está configurado com suporte a decorators no `tsconfig.json`:
 
-### Import
-
-```typescript
-import { TraceDecorator } from "@aldofrota/dd-trace-decorator";
-```
-
-### Basic Usage
-
-#### Method Decorator
-
-```typescript
-import { TraceDecorator } from "@aldofrota/dd-trace-decorator";
-
-class UserService {
-  @TraceDecorator()
-  async getUserById(id: string) {
-    // Your code here
-    return { id, name: "John Doe" };
-  }
-
-  @TraceDecorator()
-  async createUser(userData: any) {
-    // Your code here
-    return { id: "123", ...userData };
-  }
-
-  @TraceDecorator()
-  async updateUser(id: string, data: any) {
-    // Your code here
-    return { id, ...data };
-  }
+```json
+{
+  "experimentalDecorators": true,
+  "emitDecoratorMetadata": true
 }
 ```
 
-### Usage with Options
+### 2. Datadog Agent Local
 
-#### Method Decorator with Options
+Para usar em ambiente local, você precisa ter o Datadog Agent rodando. Você pode usar Docker:
+
+```bash
+docker run -d --name datadog-agent \
+  -p 8126:8126 \
+  -e DD_APM_ENABLED=true \
+  -e DD_APM_NON_LOCAL_TRAFFIC=true \
+  -e DD_APM_RECEIVER_SOCKET=0.0.0.0:8126 \
+  datadog/agent:latest
+```
+
+### 3. Instalação
+
+```bash
+npm install
+npm run build
+```
+
+### 4. Executar Exemplo
+
+```bash
+npm run example
+```
+
+## Uso
+
+### Configuração Básica
 
 ```typescript
-class OrderService {
+import '../datadog-config'; // Importar primeiro
+import { TraceDecorator } from "@aldofrota/dd-trace-decorator";
+
+export class UserService {
   @TraceDecorator({
-    name: "order.create",
-    tags: { service: "order-service" },
     includeParamsAsTags: true,
     includeResultAsTag: true,
   })
-  async createOrder(orderData: any) {
-    // Your code here
-    return { orderId: "123", status: "created" };
-  }
-
-  @TraceDecorator({
-    name: "order.update",
-    tags: { service: "order-service" },
-    includeParamsAsTags: true,
-  })
-  async updateOrder(id: string, data: any) {
-    // Your code here
-    return { id, ...data };
+  async createUser(user: any): Promise<any> {
+    return { id: 123, name: user.name };
   }
 }
 ```
 
-## ⚙️ Options
-
-| Option                | Type                  | Default                | Description                                    |
-| --------------------- | --------------------- | ---------------------- | ---------------------------------------------- |
-| `name`                | `string`              | `ClassName.methodName` | Custom name for the span                       |
-| `tags`                | `Record<string, any>` | `{}`                   | Static tags to add to the span                 |
-| `includeParamsAsTags` | `boolean`             | `false`                | Include method parameters as tags              |
-| `includeResultAsTag`  | `boolean`             | `false`                | Include method result as tag                   |
-| `argsMap`             | `string[]`            | `[]`                   | Custom mapping for parameter names             |
-| `defaultParamName`    | `string`              | `'content'`            | Default name for single parameter (not object) |
-
-## 📝 Examples
-
-### Example with Custom Tags
+### Configurações Avançadas
 
 ```typescript
-class PaymentService {
-  @TraceDecorator({
-    name: "payment.process",
-    tags: {
-      service: "payment-service",
-      version: "1.0.0",
-    },
-  })
-  async processPayment(paymentData: any) {
-    // Payment logic
-    return { success: true, transactionId: "tx_123" };
-  }
+@TraceDecorator({
+  name: "custom.span.name",
+  includeParamsAsTags: true,
+  includeSpecificArgs: [0], // Apenas o primeiro argumento
+  objectFieldsToInclude: {
+    0: ["id", "status"], // Apenas campos específicos do primeiro argumento
+  },
+  excludeObjectFields: {
+    0: ["password", "secret"], // Excluir campos sensíveis
+  },
+  argsMap: ["user", "role", "config"], // Nomes customizados para argumentos
+  tags: {
+    "custom.tag": "value",
+  },
+})
+async createUser(user: any, role: string, config: any): Promise<any> {
+  // ...
 }
 ```
 
-### Example with Parameters as Tags
+## Opções do Decorator
 
-```typescript
-class EmailService {
-  @TraceDecorator({
-    includeParamsAsTags: true,
-    argsMap: ["recipient", "subject"],
-  })
-  async sendEmail(recipient: string, subject: string, body: string) {
-    // Email sending
-    return { sent: true };
-  }
-}
-```
+- `name`: Nome customizado do span
+- `tags`: Tags estáticas adicionais
+- `includeParamsAsTags`: Incluir parâmetros como tags
+- `includeResultAsTag`: Incluir resultado como tag
+- `argsMap`: Mapeamento de nomes para argumentos
+- `includeSpecificArgs`: Índices dos argumentos a incluir
+- `objectFieldsToInclude`: Campos específicos de objetos por índice
+- `excludeObjectFields`: Campos a excluir por índice
 
-### Example with Result as Tag
+## Ambiente Local
 
-```typescript
-class DatabaseService {
-  @TraceDecorator({
-    includeParamsAsTags: true,
-    includeResultAsTag: true
-  })
-  async queryDatabase(query: string) {
-    // Database query
-    return { rows: 10, data: [...] };
-  }
-}
-```
-
-### Example with Custom Default Parameter Name
-
-```typescript
-class NotificationService {
-  @TraceDecorator({
-    includeParamsAsTags: true,
-    defaultParamName: "payload",
-  })
-  async sendNotification(data: any) {
-    // Notification sending
-    return { sent: true };
-  }
-}
-```
-
-## 🔧 Datadog Configuration
-
-Make sure the Datadog tracer is initialized in your application:
-
-```typescript
-import { tracer } from "dd-trace";
-
-// Tracer initialization (usually at the beginning of the application)
-tracer.init({
-  service: "my-service",
-  env: process.env.NODE_ENV,
-});
-```
-
-## 🧪 Testing
-
-The project includes comprehensive tests covering all decorator functionality:
-
-```bash
-# Run tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run tests with coverage
-npm run test:coverage
-```
-
-### Test Coverage
-
-Tests cover:
-
-- ✅ Method decorators (all options)
-- ✅ Error handling and validation
-- ✅ Edge cases and parameter handling
-- ✅ Async/sync method support
-
-## 📋 Requirements
-
-- Node.js 14+
-- TypeScript 4.0+
-- dd-trace 5.0+
-
-## 🤝 Contributing
-
-Contributions are welcome! Feel free to open issues or pull requests.
-
-## 📄 License
-
-MIT - see the [LICENSE](LICENSE) file for details.
-
-## 👨‍💻 Author
-
-**Aldo Frota** - [aldofrotadev@gmail.com](mailto:aldofrotadev@gmail.com)
-
----
-
-⭐ If this project was useful to you, consider giving it a star in the repository!
+O arquivo `datadog-config.js` está configurado para conectar ao Datadog Agent local em `host.internal.docker:8126`. Para outros ambientes, ajuste as configurações conforme necessário.

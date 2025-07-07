@@ -7,6 +7,10 @@ export type TraceOptions = {
   includeResultAsTag?: boolean;
   argsMap?: string[];
   defaultParamName?: string;
+  // New options for granular control
+  includeSpecificArgs?: number[]; // indices of arguments that should be included
+  objectFieldsToInclude?: Record<number, string[]>; // argument index -> object fields to include
+  excludeObjectFields?: Record<number, string[]>; // argument index -> object fields to exclude
 };
 
 export function TraceDecorator(options: TraceOptions = {}) {
@@ -25,6 +29,9 @@ export function TraceDecorator(options: TraceOptions = {}) {
       const includeResult = options.includeResultAsTag;
       const argsMap = options.argsMap || [];
       const defaultParamName = options.defaultParamName || "content";
+      const includeSpecificArgs = options.includeSpecificArgs;
+      const objectFieldsToInclude = options.objectFieldsToInclude || {};
+      const excludeObjectFields = options.excludeObjectFields || {};
 
       const parentSpan = tracer.scope().active();
       if (!parentSpan) return originalMethod.apply(this, args);
@@ -38,18 +45,58 @@ export function TraceDecorator(options: TraceOptions = {}) {
         return tracer.scope().activate(span, () => {
           if (includeParams) {
             if (args.length === 1 && isPlainObject(args[0])) {
-              // If it's a single object, use object keys as tag names
+              // If it's a single object, apply specific filters
+              const argIndex = 0;
+              const fieldsToInclude = objectFieldsToInclude[argIndex] || [];
+              const fieldsToExclude = excludeObjectFields[argIndex] || [];
+              
               Object.entries(args[0]).forEach(([key, value]) => {
-                span.setTag(key, safeSerialize(value));
+                // Check if this field should be included/excluded
+                const shouldInclude = fieldsToInclude.length === 0 || fieldsToInclude.includes(key);
+                const shouldExclude = fieldsToExclude.includes(key);
+                
+                if (shouldInclude && !shouldExclude) {
+                  span.setTag(key, safeSerialize(value));
+                }
               });
             } else if (args.length === 1) {
               // If it's a single argument (not object), use default name
               span.setTag(defaultParamName, safeSerialize(args[0]));
             } else {
-              // If multiple arguments, use mapping or default names
+              // If multiple arguments, apply specific filters
               args.forEach((arg, index) => {
+                // Check if this argument should be included
+                const shouldIncludeArg = !includeSpecificArgs || includeSpecificArgs.includes(index);
+                
+                if (!shouldIncludeArg) return;
+                
                 const tagKey = argsMap[index] || `arg${index}`;
-                span.setTag(tagKey, safeSerialize(arg));
+                
+                if (isPlainObject(arg)) {
+                  // If the argument is an object, apply specific filters
+                  const fieldsToInclude = objectFieldsToInclude[index] || [];
+                  const fieldsToExclude = excludeObjectFields[index] || [];
+                  
+                  if (fieldsToInclude.length > 0 || fieldsToExclude.length > 0) {
+                    // Apply specific filters
+                    Object.entries(arg).forEach(([key, value]) => {
+                      const shouldInclude = fieldsToInclude.length === 0 || fieldsToInclude.includes(key);
+                      const shouldExclude = fieldsToExclude.includes(key);
+                      
+                      if (shouldInclude && !shouldExclude) {
+                        span.setTag(`${tagKey}.${key}`, safeSerialize(value));
+                      }
+                    });
+                  } else {
+                    // Include all object fields
+                    Object.entries(arg).forEach(([key, value]) => {
+                      span.setTag(`${tagKey}.${key}`, safeSerialize(value));
+                    });
+                  }
+                } else {
+                  // Argument is not an object, include as simple tag
+                  span.setTag(tagKey, safeSerialize(arg));
+                }
               });
             }
           }
