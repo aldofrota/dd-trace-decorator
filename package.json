@@ -1,0 +1,33 @@
+{
+  "name": "@aldofrota/dd-trace-decorator",
+  "publishConfig": {
+    "access": "public"
+  },
+  "version": "1.0.0",
+  "description": "Decorator para facilitar tracing com Datadog",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aldofrota/dd-trace-decorator.git"
+  },
+  "keywords": [
+    "datadog",
+    "decorator",
+    "dd-trace",
+    "apm",
+    "typescript"
+  ],
+  "author": "Aldo Frota <aldofrotadev@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "dd-trace": "^5.57.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.10",
+    "typescript": "^5.8.3"
+  }
+}
