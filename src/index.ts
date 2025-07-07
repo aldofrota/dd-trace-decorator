@@ -13,6 +13,174 @@ export type TraceOptions = {
   excludeObjectFields?: Record<number, string[]>; // argument index -> object fields to exclude
 };
 
+export type TraceClassOptions = {
+  name?: string;
+  tags?: Record<string, any>;
+  includeResultAsTag?: boolean;
+};
+
+// Função auxiliar para criar o wrapper do método
+function createMethodWrapper(
+  originalMethod: Function,
+  options: TraceOptions,
+  className: string,
+  methodName: string
+): Function & { __traced?: boolean; __classTraced?: boolean } {
+  return function (this: any, ...args: any[]) {
+    const spanName = options.name || `${className}.${methodName}`;
+    const staticTags = options.tags || {};
+    const includeParams = options.includeParamsAsTags;
+    const includeResult = options.includeResultAsTag;
+    const argsMap = options.argsMap || [];
+    const defaultParamName = options.defaultParamName || "content";
+    const includeSpecificArgs = options.includeSpecificArgs;
+    const objectFieldsToInclude = options.objectFieldsToInclude || {};
+    const excludeObjectFields = options.excludeObjectFields || {};
+
+    const parentSpan = tracer.scope().active();
+    if (!parentSpan) return originalMethod.apply(this, args);
+
+    const span: Span = tracer.startSpan(spanName, {
+      childOf: parentSpan,
+      tags: staticTags,
+    });
+
+    try {
+      return tracer.scope().activate(span, () => {
+        if (includeParams) {
+          if (args.length === 1 && isPlainObject(args[0])) {
+            // If it's a single object, apply specific filters
+            const argIndex = 0;
+            const fieldsToInclude = objectFieldsToInclude[argIndex] || [];
+            const fieldsToExclude = excludeObjectFields[argIndex] || [];
+            
+            Object.entries(args[0]).forEach(([key, value]) => {
+              // Check if this field should be included/excluded
+              const shouldInclude = fieldsToInclude.length === 0 || fieldsToInclude.includes(key);
+              const shouldExclude = fieldsToExclude.includes(key);
+              
+              if (shouldInclude && !shouldExclude) {
+                span.setTag(key, safeSerialize(value));
+              }
+            });
+          } else if (args.length === 1) {
+            // If it's a single argument (not object), use default name
+            span.setTag(defaultParamName, safeSerialize(args[0]));
+          } else {
+            // If multiple arguments, apply specific filters
+            args.forEach((arg, index) => {
+              // Check if this argument should be included
+              const shouldIncludeArg = !includeSpecificArgs || includeSpecificArgs.includes(index);
+              
+              if (!shouldIncludeArg) return;
+              
+              const tagKey = argsMap[index] || `arg${index}`;
+              
+              if (isPlainObject(arg)) {
+                // If the argument is an object, apply specific filters
+                const fieldsToInclude = objectFieldsToInclude[index] || [];
+                const fieldsToExclude = excludeObjectFields[index] || [];
+                
+                if (fieldsToInclude.length > 0 || fieldsToExclude.length > 0) {
+                  // Apply specific filters
+                  Object.entries(arg).forEach(([key, value]) => {
+                    const shouldInclude = fieldsToInclude.length === 0 || fieldsToInclude.includes(key);
+                    const shouldExclude = fieldsToExclude.includes(key);
+                    
+                    if (shouldInclude && !shouldExclude) {
+                      span.setTag(`${tagKey}.${key}`, safeSerialize(value));
+                    }
+                  });
+                } else {
+                  // Include all object fields
+                  Object.entries(arg).forEach(([key, value]) => {
+                    span.setTag(`${tagKey}.${key}`, safeSerialize(value));
+                  });
+                }
+              } else {
+                // Argument is not an object, include as simple tag
+                span.setTag(tagKey, safeSerialize(arg));
+              }
+            });
+          }
+        }
+
+        const result = originalMethod.apply(this, args);
+
+        if (isPromise(result)) {
+          return result
+            .then((res) => {
+              if (includeResult) {
+                span.setTag("result", safeSerialize(res));
+              }
+              return res;
+            })
+            .catch((err) => {
+              setErrorTags(span, err);
+              throw err;
+            })
+            .finally(() => {
+              span.finish();
+            });
+        } else {
+          if (includeResult) {
+            span.setTag("result", safeSerialize(result));
+          }
+          return result;
+        }
+      });
+    } catch (err) {
+      setErrorTags(span, err);
+      throw err;
+    } finally {
+      if (!isPromise(originalMethod)) {
+        span.finish();
+      }
+    }
+  };
+}
+
+// Decorator de classe
+export function TraceClass(options: TraceClassOptions = {}) {
+  return function (target: any) {
+    const className = target.name;
+    
+    // Aplicar o decorator a todos os métodos da classe imediatamente
+    const methodNames = Object.getOwnPropertyNames(target.prototype).filter(
+      name => name !== 'constructor' && typeof target.prototype[name] === 'function'
+    );
+
+    methodNames.forEach(methodName => {
+      const originalMethod = target.prototype[methodName];
+      
+      // Criar opções para o método
+      const methodOptions: TraceOptions = {
+        name: options.name ? `${options.name}.${methodName}` : undefined,
+        tags: options.tags,
+        includeResultAsTag: options.includeResultAsTag,
+        includeParamsAsTags: false,
+      };
+
+      const wrappedMethod = createMethodWrapper(
+        originalMethod,
+        methodOptions,
+        className,
+        methodName
+      );
+      
+      // Aplicar o wrapper diretamente
+      Object.defineProperty(target.prototype, methodName, {
+        value: wrappedMethod,
+        writable: true,
+        configurable: true
+      });
+    });
+
+    return target;
+  };
+}
+
+// Decorator de método (original)
 export function TraceDecorator(options: TraceOptions = {}) {
   return function (
     target: any,
@@ -20,121 +188,24 @@ export function TraceDecorator(options: TraceOptions = {}) {
     descriptor: PropertyDescriptor
   ) {
     const originalMethod = descriptor.value;
-
-    descriptor.value = function (...args: any[]) {
-      const spanName =
-        options.name || `${target.constructor.name}.${propertyKey}`;
-      const staticTags = options.tags || {};
-      const includeParams = options.includeParamsAsTags;
-      const includeResult = options.includeResultAsTag;
-      const argsMap = options.argsMap || [];
-      const defaultParamName = options.defaultParamName || "content";
-      const includeSpecificArgs = options.includeSpecificArgs;
-      const objectFieldsToInclude = options.objectFieldsToInclude || {};
-      const excludeObjectFields = options.excludeObjectFields || {};
-
-      const parentSpan = tracer.scope().active();
-      if (!parentSpan) return originalMethod.apply(this, args);
-
-      const span: Span = tracer.startSpan(spanName, {
-        childOf: parentSpan,
-        tags: staticTags,
-      });
-
-      try {
-        return tracer.scope().activate(span, () => {
-          if (includeParams) {
-            if (args.length === 1 && isPlainObject(args[0])) {
-              // If it's a single object, apply specific filters
-              const argIndex = 0;
-              const fieldsToInclude = objectFieldsToInclude[argIndex] || [];
-              const fieldsToExclude = excludeObjectFields[argIndex] || [];
-              
-              Object.entries(args[0]).forEach(([key, value]) => {
-                // Check if this field should be included/excluded
-                const shouldInclude = fieldsToInclude.length === 0 || fieldsToInclude.includes(key);
-                const shouldExclude = fieldsToExclude.includes(key);
-                
-                if (shouldInclude && !shouldExclude) {
-                  span.setTag(key, safeSerialize(value));
-                }
-              });
-            } else if (args.length === 1) {
-              // If it's a single argument (not object), use default name
-              span.setTag(defaultParamName, safeSerialize(args[0]));
-            } else {
-              // If multiple arguments, apply specific filters
-              args.forEach((arg, index) => {
-                // Check if this argument should be included
-                const shouldIncludeArg = !includeSpecificArgs || includeSpecificArgs.includes(index);
-                
-                if (!shouldIncludeArg) return;
-                
-                const tagKey = argsMap[index] || `arg${index}`;
-                
-                if (isPlainObject(arg)) {
-                  // If the argument is an object, apply specific filters
-                  const fieldsToInclude = objectFieldsToInclude[index] || [];
-                  const fieldsToExclude = excludeObjectFields[index] || [];
-                  
-                  if (fieldsToInclude.length > 0 || fieldsToExclude.length > 0) {
-                    // Apply specific filters
-                    Object.entries(arg).forEach(([key, value]) => {
-                      const shouldInclude = fieldsToInclude.length === 0 || fieldsToInclude.includes(key);
-                      const shouldExclude = fieldsToExclude.includes(key);
-                      
-                      if (shouldInclude && !shouldExclude) {
-                        span.setTag(`${tagKey}.${key}`, safeSerialize(value));
-                      }
-                    });
-                  } else {
-                    // Include all object fields
-                    Object.entries(arg).forEach(([key, value]) => {
-                      span.setTag(`${tagKey}.${key}`, safeSerialize(value));
-                    });
-                  }
-                } else {
-                  // Argument is not an object, include as simple tag
-                  span.setTag(tagKey, safeSerialize(arg));
-                }
-              });
-            }
-          }
-
-          const result = originalMethod.apply(this, args);
-
-          if (isPromise(result)) {
-            return result
-              .then((res) => {
-                if (includeResult) {
-                  span.setTag("result", safeSerialize(res));
-                }
-                return res;
-              })
-              .catch((err) => {
-                setErrorTags(span, err);
-                throw err;
-              })
-              .finally(() => {
-                span.finish();
-              });
-          } else {
-            if (includeResult) {
-              span.setTag("result", safeSerialize(result));
-            }
-            return result;
-          }
-        });
-      } catch (err) {
-        setErrorTags(span, err);
-        throw err;
-      } finally {
-        if (!isPromise(originalMethod)) {
-          span.finish();
-        }
-      }
-    };
-
+    
+    // Se o método já foi decorado pela classe, sobrescrever
+    if (originalMethod.__classTraced) {
+      descriptor.value = createMethodWrapper(
+        originalMethod,
+        options,
+        target.constructor.name,
+        propertyKey
+      );
+    } else {
+      descriptor.value = createMethodWrapper(
+        originalMethod,
+        options,
+        target.constructor.name,
+        propertyKey
+      );
+    }
+    
     return descriptor;
   };
 }
