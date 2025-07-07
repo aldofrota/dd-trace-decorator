@@ -4,7 +4,7 @@
     "access": "public"
   },
   "version": "1.0.1",
-  "description": "Decorator para facilitar tracing com Datadog",
+  "description": "Decorator to facilitate tracing with Datadog",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -24,7 +24,7 @@
   "author": "Aldo Frota <aldofrotadev@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "dd-trace": "^3.2.0"
+    "dd-trace": "^5.57.1"
   },
   "devDependencies": {
     "@types/node": "^24.0.10",

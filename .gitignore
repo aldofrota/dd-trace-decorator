@@ -46,6 +46,9 @@ pids
 coverage/
 *.lcov
 
+# Test files
+.jest/
+
 # nyc test coverage
 .nyc_output
 
