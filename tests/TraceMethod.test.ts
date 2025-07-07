@@ -1,7 +1,7 @@
-import { TraceDecorator } from '../src/index';
+import { TraceMethod } from '../src/index';
 import { tracer } from 'dd-trace';
 
-describe('TraceDecorator', () => {
+describe('TraceMethod', () => {
   let mockSpan: any;
 
   beforeEach(() => {
@@ -18,7 +18,7 @@ describe('TraceDecorator', () => {
   describe('Basic configuration', () => {
     it('should create a span with default name when not specified', () => {
       class TestClass {
-        @TraceDecorator()
+        @TraceMethod()
         testMethod() {
           return 'test';
         }
@@ -35,7 +35,7 @@ describe('TraceDecorator', () => {
 
     it('should create a span with a custom name', () => {
       class TestClass {
-        @TraceDecorator({ name: 'custom.span.name' })
+        @TraceMethod({ name: 'custom.span.name' })
         testMethod() {
           return 'test';
         }
@@ -52,7 +52,7 @@ describe('TraceDecorator', () => {
 
     it('should add static tags', () => {
       class TestClass {
-        @TraceDecorator({ 
+        @TraceMethod({ 
           tags: { 
             service: 'test-service',
             version: '1.0.0' 
@@ -76,7 +76,7 @@ describe('TraceDecorator', () => {
   describe('Parameter inclusion', () => {
     it('should include parameters as tags when includeParamsAsTags is true', () => {
       class TestClass {
-        @TraceDecorator({ includeParamsAsTags: true })
+        @TraceMethod({ includeParamsAsTags: true })
         testMethod(param1: string, param2: number) {
           return `${param1}-${param2}`;
         }
@@ -91,7 +91,7 @@ describe('TraceDecorator', () => {
 
     it('should use custom names for arguments', () => {
       class TestClass {
-        @TraceDecorator({ 
+        @TraceMethod({ 
           includeParamsAsTags: true,
           argsMap: ['message', 'count']
         })
@@ -109,7 +109,7 @@ describe('TraceDecorator', () => {
 
     it('should use default name for single argument', () => {
       class TestClass {
-        @TraceDecorator({ 
+        @TraceMethod({ 
           includeParamsAsTags: true,
           defaultParamName: 'data'
         })
@@ -128,7 +128,7 @@ describe('TraceDecorator', () => {
   describe('Specific argument filters', () => {
     it('should include only specific arguments', () => {
       class TestClass {
-        @TraceDecorator({ 
+        @TraceMethod({ 
           includeParamsAsTags: true,
           includeSpecificArgs: [0, 2]
         })
@@ -147,7 +147,7 @@ describe('TraceDecorator', () => {
 
     it('should include specific object fields', () => {
       class TestClass {
-        @TraceDecorator({ 
+        @TraceMethod({ 
           includeParamsAsTags: true,
           objectFieldsToInclude: { 0: ['name', 'age'] }
         })
@@ -166,7 +166,7 @@ describe('TraceDecorator', () => {
 
     it('should exclude specific object fields', () => {
       class TestClass {
-        @TraceDecorator({ 
+        @TraceMethod({ 
           includeParamsAsTags: true,
           excludeObjectFields: { 0: ['password', 'secret'] }
         })
@@ -188,12 +188,68 @@ describe('TraceDecorator', () => {
       expect(mockSpan.setTag).not.toHaveBeenCalledWith('password', expect.anything());
       expect(mockSpan.setTag).not.toHaveBeenCalledWith('secret', expect.anything());
     });
+
+    it('should ignore non-existent fields when specifying objectFieldsToInclude', () => {
+      class TestClass {
+        @TraceMethod({ 
+          includeParamsAsTags: true,
+          objectFieldsToInclude: { 0: ['name', 'age', 'email', 'phone'] }
+        })
+        testMethod(user: any) {
+          return user.name;
+        }
+      }
+
+      const instance = new TestClass();
+      instance.testMethod({ name: 'John', age: 30 });
+
+      // Should include existing fields
+      expect(mockSpan.setTag).toHaveBeenCalledWith('name', 'John');
+      expect(mockSpan.setTag).toHaveBeenCalledWith('age', 30);
+      
+      // Should NOT include non-existent fields
+      expect(mockSpan.setTag).not.toHaveBeenCalledWith('email', expect.anything());
+      expect(mockSpan.setTag).not.toHaveBeenCalledWith('phone', expect.anything());
+      
+      // Should NOT create empty tags for non-existent fields
+      expect(mockSpan.setTag).not.toHaveBeenCalledWith('email', '');
+      expect(mockSpan.setTag).not.toHaveBeenCalledWith('phone', undefined);
+    });
+
+    it('should handle mixed existing and non-existing fields in objectFieldsToInclude', () => {
+      class TestClass {
+        @TraceMethod({ 
+          includeParamsAsTags: true,
+          objectFieldsToInclude: { 0: ['id', 'name', 'email', 'role', 'department'] }
+        })
+        testMethod(user: any) {
+          return user.name;
+        }
+      }
+
+      const instance = new TestClass();
+      instance.testMethod({ 
+        id: 1, 
+        name: 'John', 
+        role: 'admin',
+        // email and department don't exist
+      });
+
+      // Should include existing fields
+      expect(mockSpan.setTag).toHaveBeenCalledWith('id', 1);
+      expect(mockSpan.setTag).toHaveBeenCalledWith('name', 'John');
+      expect(mockSpan.setTag).toHaveBeenCalledWith('role', 'admin');
+      
+      // Should NOT include non-existent fields
+      expect(mockSpan.setTag).not.toHaveBeenCalledWith('email', expect.anything());
+      expect(mockSpan.setTag).not.toHaveBeenCalledWith('department', expect.anything());
+    });
   });
 
   describe('Result inclusion', () => {
     it('should include result as tag when includeResultAsTag is true', () => {
       class TestClass {
-        @TraceDecorator({ includeResultAsTag: true })
+        @TraceMethod({ includeResultAsTag: true })
         testMethod() {
           return 'test result';
         }
@@ -207,7 +263,7 @@ describe('TraceDecorator', () => {
 
     it('should include Promise result', async () => {
       class TestClass {
-        @TraceDecorator({ includeResultAsTag: true })
+        @TraceMethod({ includeResultAsTag: true })
         async testMethod() {
           return 'async result';
         }
@@ -223,7 +279,7 @@ describe('TraceDecorator', () => {
   describe('Error handling', () => {
     it('should capture and mark errors', () => {
       class TestClass {
-        @TraceDecorator()
+        @TraceMethod()
         testMethod() {
           throw new Error('Test error');
         }
@@ -239,7 +295,7 @@ describe('TraceDecorator', () => {
 
     it('should capture errors in Promises', async () => {
       class TestClass {
-        @TraceDecorator()
+        @TraceMethod()
         async testMethod() {
           throw new Error('Async error');
         }
@@ -261,7 +317,7 @@ describe('TraceDecorator', () => {
       });
 
       class TestClass {
-        @TraceDecorator()
+        @TraceMethod()
         testMethod() {
           return 'test';
         }
@@ -283,7 +339,7 @@ describe('TraceDecorator', () => {
   describe('Safe serialization', () => {
     it('should serialize complex objects', () => {
       class TestClass {
-        @TraceDecorator({ includeParamsAsTags: true })
+        @TraceMethod({ includeParamsAsTags: true })
         testMethod(data: any) {
           return data;
         }
@@ -309,7 +365,7 @@ describe('TraceDecorator', () => {
 
     it('should handle non-serializable objects', () => {
       class TestClass {
-        @TraceDecorator({ includeParamsAsTags: true })
+        @TraceMethod({ includeParamsAsTags: true })
         testMethod(data: any) {
           return data;
         }
@@ -329,7 +385,7 @@ describe('TraceDecorator', () => {
   describe('Span finalization', () => {
     it('should finalize span after synchronous execution', () => {
       class TestClass {
-        @TraceDecorator()
+        @TraceMethod()
         testMethod() {
           return 'test';
         }
@@ -343,7 +399,7 @@ describe('TraceDecorator', () => {
 
     it('should finalize span after asynchronous execution', async () => {
       class TestClass {
-        @TraceDecorator()
+        @TraceMethod()
         async testMethod() {
           return 'test';
         }

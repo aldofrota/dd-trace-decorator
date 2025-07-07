@@ -19,7 +19,7 @@ export type TraceClassOptions = {
   includeResultAsTag?: boolean;
 };
 
-// Função auxiliar para criar o wrapper do método
+// Helper function to create the method wrapper
 function createMethodWrapper(
   originalMethod: Function,
   options: TraceOptions,
@@ -140,12 +140,12 @@ function createMethodWrapper(
   };
 }
 
-// Decorator de classe
+// Class decorator
 export function TraceClass(options: TraceClassOptions = {}) {
   return function (target: any) {
     const className = target.name;
     
-    // Aplicar o decorator a todos os métodos da classe imediatamente
+    // Apply tracing to all methods in the class
     const methodNames = Object.getOwnPropertyNames(target.prototype).filter(
       name => name !== 'constructor' && typeof target.prototype[name] === 'function'
     );
@@ -153,7 +153,7 @@ export function TraceClass(options: TraceClassOptions = {}) {
     methodNames.forEach(methodName => {
       const originalMethod = target.prototype[methodName];
       
-      // Criar opções para o método
+      // Create options for the method
       const methodOptions: TraceOptions = {
         name: options.name ? `${options.name}.${methodName}` : undefined,
         tags: options.tags,
@@ -168,7 +168,7 @@ export function TraceClass(options: TraceClassOptions = {}) {
         methodName
       );
       
-      // Aplicar o wrapper diretamente
+      // Apply the wrapper directly
       Object.defineProperty(target.prototype, methodName, {
         value: wrappedMethod,
         writable: true,
@@ -180,8 +180,8 @@ export function TraceClass(options: TraceClassOptions = {}) {
   };
 }
 
-// Decorator de método (original)
-export function TraceDecorator(options: TraceOptions = {}) {
+// Method decorator (original)
+export function TraceMethod(options: TraceOptions = {}) {
   return function (
     target: any,
     propertyKey: string,
@@ -189,7 +189,7 @@ export function TraceDecorator(options: TraceOptions = {}) {
   ) {
     const originalMethod = descriptor.value;
     
-    // Se o método já foi decorado pela classe, sobrescrever
+    // If the method has already been decorated by the class, override
     if (originalMethod.__classTraced) {
       descriptor.value = createMethodWrapper(
         originalMethod,

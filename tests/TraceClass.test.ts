@@ -1,4 +1,4 @@
-import { TraceClass, TraceDecorator } from "../src/index";
+import { TraceClass, TraceMethod } from "../src/index";
 import { tracer } from "dd-trace";
 
 // O mock do dd-trace está em tests/setup.ts
@@ -137,7 +137,7 @@ describe("TraceClass", () => {
         }
 
         // This method will override class settings
-        @TraceDecorator({
+        @TraceMethod({
           name: "user.service.createWithParams",
           includeParamsAsTags: true,
           tags: { method: "createWithParams" },
@@ -182,7 +182,7 @@ describe("TraceClass", () => {
       })
       class ApiService {
         // Method with specific parameter tracing
-        @TraceDecorator({
+        @TraceMethod({
           includeParamsAsTags: true,
           objectFieldsToInclude: { 0: ["name", "email"] },
           excludeObjectFields: { 0: ["password"] },
