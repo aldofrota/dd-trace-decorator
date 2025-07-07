@@ -149,85 +149,6 @@ class NotificationService {
 }
 ```
 
-## 🔄 Combined Usage
-
-### Class + Specific Method
-
-You can combine the class decorator with specific method decorators. The method decorator **overrides** the class configuration for that specific method.
-
-**Behavior:**
-
-- **Methods without individual decorator**: use class configuration
-- **Methods with individual decorator**: use specific method configuration
-- **Configurations are merged**: class tags + method tags
-
-**Merging Example:**
-
-```typescript
-@TraceDecorator({
-  tags: { service: "user-service" }, // Base tag
-})
-class UserService {
-  @TraceDecorator({
-    tags: { operation: "create" }, // Additional tag
-  })
-  async createUser(data: any) {
-    // Final tags: service="user-service", operation="create"
-  }
-}
-```
-
-## ⚠️ Limitations
-
-### argsMap in Class Decorators
-
-When the decorator is applied to a class, the `argsMap` option **is not allowed** and will generate a runtime error. This happens because different methods can have different parameters.
-
-```typescript
-// ❌ Runtime error
-@TraceDecorator({
-  includeParamsAsTags: true,
-  argsMap: ["userId", "action"], // ❌ Error: "argsMap cannot be used in class decorators"
-})
-class UserService {
-  async getUser(id: string) {
-    /* arg0="123" */
-  }
-  async createUser(data: any) {
-    /* arg0="{...}" */
-  }
-}
-
-// ✅ Works correctly
-class UserService {
-  @TraceDecorator({
-    includeParamsAsTags: true,
-    argsMap: ["userId", "action"],
-  })
-  async getUser(id: string) {
-    /* userId="123" */
-  }
-}
-```
-
-## 🚨 Error Handling
-
-The decorator includes validations that generate descriptive runtime errors:
-
-### argsMap in Class Error
-
-```typescript
-// This code will generate an error:
-@TraceDecorator({
-  argsMap: ["userId", "action"], // ❌ Error!
-})
-class UserService {
-  // ...
-}
-
-// Error: "@TraceDecorator: argsMap cannot be used in class decorators. Use argsMap only in individual method decorators. Class: UserService"
-```
-
 ## 🔧 Datadog Configuration
 
 Make sure the Datadog tracer is initialized in your application:
@@ -262,8 +183,6 @@ npm run test:coverage
 Tests cover:
 
 - ✅ Method decorators (all options)
-- ✅ Class decorators
-- ✅ Combined usage (class + method)
 - ✅ Error handling and validation
 - ✅ Edge cases and parameter handling
 - ✅ Async/sync method support
