@@ -18,7 +18,7 @@ import { TraceDecorator } from "@aldofrota/dd-trace-decorator";
 
 ### Basic Usage
 
-#### Individual Method Decorator
+#### Method Decorator
 
 ```typescript
 import { TraceDecorator } from "@aldofrota/dd-trace-decorator";
@@ -29,24 +29,14 @@ class UserService {
     // Your code here
     return { id, name: "John Doe" };
   }
-}
-```
 
-#### Class Decorator (All Methods)
-
-```typescript
-@TraceDecorator()
-class UserService {
-  async getUserById(id: string) {
-    // Your code here
-    return { id, name: "John Doe" };
-  }
-
+  @TraceDecorator()
   async createUser(userData: any) {
     // Your code here
     return { id: "123", ...userData };
   }
 
+  @TraceDecorator()
   async updateUser(id: string, data: any) {
     // Your code here
     return { id, ...data };
@@ -70,22 +60,12 @@ class OrderService {
     // Your code here
     return { orderId: "123", status: "created" };
   }
-}
-```
 
-#### Class Decorator with Options
-
-```typescript
-@TraceDecorator({
-  tags: { service: "order-service" },
-  includeParamsAsTags: true,
-})
-class OrderService {
-  async createOrder(orderData: any) {
-    // Your code here
-    return { orderId: "123", status: "created" };
-  }
-
+  @TraceDecorator({
+    name: "order.update",
+    tags: { service: "order-service" },
+    includeParamsAsTags: true,
+  })
   async updateOrder(id: string, data: any) {
     // Your code here
     return { id, ...data };
@@ -93,46 +73,16 @@ class OrderService {
 }
 ```
 
-#### Combined Usage (Class + Specific Method)
-
-```typescript
-@TraceDecorator({
-  tags: { service: "user-service" },
-  includeParamsAsTags: true,
-})
-class UserService {
-  // Uses class configuration
-  async getUser(id: string) {
-    return { id, name: "John" };
-  }
-
-  // Overrides class configuration with specific configuration
-  @TraceDecorator({
-    name: "user.create",
-    tags: { operation: "create" },
-    argsMap: ["userData"],
-  })
-  async createUser(userData: any) {
-    return { id: "123", ...userData };
-  }
-
-  // Uses class configuration
-  async updateUser(id: string, data: any) {
-    return { id, ...data };
-  }
-}
-```
-
 ## ⚙️ Options
 
-| Option                | Type                  | Default                | Description                                                                     |
-| --------------------- | --------------------- | ---------------------- | ------------------------------------------------------------------------------- |
-| `name`                | `string`              | `ClassName.methodName` | Custom name for the span                                                        |
-| `tags`                | `Record<string, any>` | `{}`                   | Static tags to add to the span                                                  |
-| `includeParamsAsTags` | `boolean`             | `false`                | Include method parameters as tags                                               |
-| `includeResultAsTag`  | `boolean`             | `false`                | Include method result as tag                                                    |
-| `argsMap`             | `string[]`            | `[]`                   | Custom mapping for parameter names (only works in individual method decorators) |
-| `defaultParamName`    | `string`              | `'content'`            | Default name for single parameter (not object)                                  |
+| Option                | Type                  | Default                | Description                                    |
+| --------------------- | --------------------- | ---------------------- | ---------------------------------------------- |
+| `name`                | `string`              | `ClassName.methodName` | Custom name for the span                       |
+| `tags`                | `Record<string, any>` | `{}`                   | Static tags to add to the span                 |
+| `includeParamsAsTags` | `boolean`             | `false`                | Include method parameters as tags              |
+| `includeResultAsTag`  | `boolean`             | `false`                | Include method result as tag                   |
+| `argsMap`             | `string[]`            | `[]`                   | Custom mapping for parameter names             |
+| `defaultParamName`    | `string`              | `'content'`            | Default name for single parameter (not object) |
 
 ## 📝 Examples
 
