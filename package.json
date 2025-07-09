@@ -10,6 +10,8 @@
   "scripts": {
     "build": "tsc",
     "test": "jest",
+    "publish:latest": "npm version patch && npm run build && npm publish --tag latest && git push origin main",
+    "publish:beta": "npm version patch && npm run build && npm publish --tag beta && git push origin main",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
