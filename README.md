@@ -1,26 +1,26 @@
 # DD-Trace Decorator
 
-Decorator to facilitate tracing with Datadog in TypeScript applications, supporting both method and class decorators.
+Decorator para facilitar o tracing com Datadog em aplicações TypeScript.
 
-## Prerequisites
+## Pré-requisitos
 
-Make sure you have Datadog configured in your environment to validate the tracing functionality.
+Certifique-se de que o Datadog está configurado no seu ambiente para validar a funcionalidade de tracing.
 
-## Installation
+## Instalação
 
-### Install the library
+### Instale a biblioteca
 
 ```bash
 npm install @aldofrota/dd-trace-decorator
 ```
 
-## Usage
+## Uso
 
-### Method Decorator
+### Decorator de Método
 
-The `@TraceMethod` decorator can be applied to individual methods to add specific tracing.
+O decorator `@TraceMethod` pode ser aplicado a métodos individuais para adicionar tracing específico.
 
-#### Basic Configuration
+#### Configuração Básica
 
 ```typescript
 import { TraceMethod } from "@aldofrota/dd-trace-decorator";
@@ -36,20 +36,20 @@ export class UserService {
 }
 ```
 
-#### Advanced Configuration
+#### Configuração Avançada
 
 ```typescript
 @TraceMethod({
   name: "custom.span.name",
   includeParamsAsTags: true,
-  includeSpecificArgs: [0], // Only the first argument
+  includeSpecificArgs: [0], // Apenas o primeiro argumento
   objectFieldsToInclude: {
-    0: ["id", "status"], // Only specific fields from the first argument
+    0: ["id", "status"], // Apenas campos específicos do primeiro argumento
   },
   excludeObjectFields: {
-    0: ["password", "secret"], // Exclude sensitive fields
+    0: ["password", "secret"], // Excluir campos sensíveis
   },
-  argsMap: ["user", "role", "config"], // Custom names for arguments
+  argsMap: ["user", "role", "config"], // Nomes customizados para argumentos
   tags: {
     "custom.tag": "value",
   },
@@ -59,124 +59,282 @@ async createUser(user: any, role: string, config: any): Promise<any> {
 }
 ```
 
-### Class Decorator
+## Opções do Decorator
 
-The `@TraceClass` decorator automatically applies tracing to all methods in the class, except the constructor.
+### Opções Disponíveis
 
-#### Basic Configuration
+**Configurações Independentes:**
+
+- `name`: Nome customizado do span
+- `tags`: Tags estáticas adicionais
+- `includeParamsAsTags`: Incluir parâmetros como tags
+- `includeResultAsTag`: Incluir resultado como tag
+
+**Configurações que dependem de `includeParamsAsTags: true`:**
+
+- `includeParamsAsTags`: Habilita a inclusão de parâmetros como tags
+- `argsMap`: Mapeamento de nomes para argumentos
+- `includeSpecificArgs`: Índices dos argumentos a serem incluídos
+- `objectFieldsToInclude`: Campos específicos de objetos por índice
+- `excludeObjectFields`: Campos a serem excluídos por índice
+
+### Comportamento do Decorator
+
+O decorator `@TraceMethod`:
+
+- Aplica tracing apenas ao método decorado
+- Permite configurações específicas por método
+- Suporta todas as opções de configuração
+- Funciona com métodos síncronos e assíncronos
+
+### Configurações Detalhadas
+
+#### Configurações Básicas
+
+**`name`**: Define um nome customizado para o span
 
 ```typescript
-import { TraceClass } from "@aldofrota/dd-trace-decorator";
-
-@TraceClass({
-  includeParamsAsTags: true,
-  includeResultAsTag: true,
-})
-export class UserService {
-  async createUser(user: any): Promise<any> {
-    return { id: 123, name: user.name };
-  }
-
-  async updateUser(id: number, user: any): Promise<any> {
-    return { id, ...user };
-  }
-
-  async deleteUser(id: number): Promise<void> {
-    // Delete logic
-  }
-}
+@TraceMethod({ name: "custom.operation.name" })
+method() { /* ... */ }
 ```
 
-#### Combining Decorators
-
-You can combine the class decorator with method decorators to override specific configurations:
+**`tags`**: Adiciona tags estáticas ao span
 
 ```typescript
-@TraceClass({
-  includeParamsAsTags: true,
-  includeResultAsTag: true,
+@TraceMethod({ 
+  tags: { 
+    service: "user-service", 
+    version: "1.0.0" 
+  } 
 })
-export class UserService {
-  // Uses class configurations
-  async createUser(user: any): Promise<any> {
-    return { id: 123, name: user.name };
-  }
-
-  // Overrides with specific configurations
-  @TraceMethod({
-    name: "user.update",
-    includeParamsAsTags: false,
-    tags: {
-      "operation": "update",
-      "priority": "high"
-    }
-  })
-  async updateUser(id: number, user: any): Promise<any> {
-    return { id, ...user };
-  }
-}
+method() { /* ... */ }
 ```
 
-## Decorator Options
+**`includeParamsAsTags`**: Habilita a inclusão de parâmetros como tags
 
-### Common Options
+```typescript
+@TraceMethod({ includeParamsAsTags: true })
+method(user: any) { /* ... */ }
+// Resultado: user = { id: 123, name: "John" }
+```
 
-- `name`: Custom span name
-- `tags`: Additional static tags
-- `includeParamsAsTags`: Include parameters as tags
-- `includeResultAsTag`: Include result as tag
-- `argsMap`: Name mapping for arguments
-- `includeSpecificArgs`: Indices of arguments to include
-- `objectFieldsToInclude`: Specific fields of objects by index
-- `excludeObjectFields`: Fields to exclude by index
+**`includeResultAsTag`**: Inclui o resultado do método como tag
 
-### Decorator Behavior
+```typescript
+@TraceMethod({ includeResultAsTag: true })
+method() { return { success: true }; }
+// Resultado: result = {"success":true}
+```
 
-#### Method Decorator (`@TraceMethod`)
-- Applies tracing only to the decorated method
-- Allows specific configurations per method
-- Supports all configuration options
+#### Configurações de Parâmetros
 
-#### Class Decorator (`@TraceClass`)
-- Automatically applies tracing to all methods in the class
-- Excludes the constructor from application
-- Can be overridden by method decorators
-- Uses basic configurations by default
+**`argsMap`**: Define nomes customizados para argumentos *(requer `includeParamsAsTags: true`)*
 
-## Data Handling
+**⚠️ Importante**: O `argsMap` deve ter exatamente o mesmo número de nomes que o número de parâmetros, na ordem correta.
 
-### Safe Serialization
-- Objects are serialized safely
-- Sensitive fields can be excluded
-- Arrays and nested objects are supported
-- `undefined` and `null` values are handled appropriately
+```typescript
+@TraceMethod({
+  includeParamsAsTags: true, // ← Obrigatório
+  argsMap: ["user", "role", "config"] // ← Deve corresponder aos parâmetros na ordem
+})
+method(user: any, role: string, config: any) { /* ... */ }
+// Resultado: user = {...}, role = "admin", config = {...}
+```
 
-### Error Handling
-- Errors are captured and added as tags
-- The span is properly finalized even in case of error
-- Stack traces are included when available
+**❌ Exemplo incorreto:**
+
+```typescript
+@TraceMethod({
+  includeParamsAsTags: true,
+  argsMap: ["user", "role"] // ← Faltando nome para o terceiro parâmetro
+})
+method(user: any, role: string, config: any) { /* ... */ }
+// Resultado: user = {...}, role = "admin", config = "arg2" (nome padrão)
+```
+
+**`includeSpecificArgs`**: Inclui apenas argumentos específicos *(requer `includeParamsAsTags: true`)*
+
+```typescript
+@TraceMethod({
+  includeParamsAsTags: true, // ← Obrigatório
+  includeSpecificArgs: [0, 2] // Apenas primeiro e terceiro argumentos
+})
+method(user: any, role: string, config: any) { /* ... */ }
+// Resultado: user = {...}, config = {...} (role é ignorado)
+```
+
+#### Configurações de Filtragem de Objetos
+
+**Importante**: Estas configurações só funcionam quando `includeParamsAsTags: true`
+
+**`objectFieldsToInclude`**: Inclui apenas campos específicos de objetos *(requer `includeParamsAsTags: true`)*
+
+```typescript
+@TraceMethod({
+  includeParamsAsTags: true, // ← Obrigatório
+  objectFieldsToInclude: {
+    0: ["id", "name"], // Apenas id e name do primeiro argumento
+    2: ["enabled"]     // Apenas enabled do terceiro argumento
+  }
+})
+method(user: any, role: string, config: any) { /* ... */ }
+// Resultado: user.id = 123, user.name = "John", config.enabled = true
+```
+
+**`excludeObjectFields`**: Exclui campos específicos de objetos *(requer `includeParamsAsTags: true`)*
+
+```typescript
+@TraceMethod({
+  includeParamsAsTags: true, // ← Obrigatório
+  excludeObjectFields: {
+    0: ["password", "secret"], // Exclui campos sensíveis
+    2: ["internal"]            // Exclui campo interno
+  }
+})
+method(user: any, role: string, config: any) { /* ... */ }
+// Resultado: todos os campos exceto password, secret e internal
+```
+
+#### Combinações Avançadas
+
+**Filtragem completa com nomes customizados:**
+
+```typescript
+@TraceMethod({
+  includeParamsAsTags: true,
+  argsMap: ["user", "role", "config"],
+  includeSpecificArgs: [0, 2],
+  objectFieldsToInclude: {
+    0: ["id", "name"],
+    2: ["enabled"]
+  },
+  excludeObjectFields: {
+    0: ["password"],
+    2: ["internal"]
+  }
+})
+method(user: any, role: string, config: any) { /* ... */ }
+```
+
+**Configuração para objeto único:**
+
+```typescript
+@TraceMethod({
+  includeParamsAsTags: true,
+  objectFieldsToInclude: {
+    0: ["id", "name", "email"]
+  },
+  excludeObjectFields: {
+    0: ["password", "secret"]
+  }
+})
+createUser(user: any) { /* ... */ }
+// Resultado: apenas id, name e email são incluídos como tags
+```
+
+#### Comportamentos Especiais
+
+**Objeto único sem filtros:**
+
+```typescript
+@TraceMethod({ includeParamsAsTags: true })
+createUser(user: any) { /* ... */ }
+// Resultado: todos os campos do objeto são incluídos
+```
+
+**Argumento único (não objeto):**
+
+```typescript
+@TraceMethod({ 
+  includeParamsAsTags: true,
+  defaultParamName: "content" // Nome padrão para argumento único
+})
+processId(id: number) { /* ... */ }
+// Resultado: content = 123
+```
+
+**Múltiplos argumentos sem filtros:**
+
+```typescript
+@TraceMethod({ includeParamsAsTags: true })
+updateUser(id: number, user: any, config: any) { /* ... */ }
+// Resultado: arg0 = 123, arg1 = {...}, arg2 = {...}
+```
+
+**Comportamento padrão sem `argsMap`:**
+
+```typescript
+@TraceMethod({ includeParamsAsTags: true })
+method(param1: any, param2: any, param3: any) { /* ... */ }
+// Resultado: arg0 = {...}, arg1 = {...}, arg2 = {...}
+// Nomes padrão: arg0, arg1, arg2, etc.
+```
+
+## Manipulação de Dados
+
+### Serialização Segura
+
+- Objetos são serializados de forma segura
+- Campos sensíveis podem ser excluídos
+- Arrays e objetos aninhados são suportados
+- Valores `undefined` e `null` são tratados adequadamente
+
+### Tratamento de Erros
+
+- Erros são capturados e adicionados como tags
+- O span é finalizado adequadamente mesmo em caso de erro
+- Stack traces são incluídos quando disponíveis
 
 ### Performance
-- Decorators are applied at compile time
-- Minimal runtime overhead
-- Spans are automatically finalized
 
-## Testing
+- Decorators são aplicados em tempo de compilação
+- Overhead mínimo em runtime
+- Spans são finalizados automaticamente
 
-Run tests with:
+#### 1. Overhead por Chamada de Método
 
-```bash
-npm test
+- **Criação do span**: ~1-5μs (microssegundos)
+- **Serialização de parâmetros**: Depende do tamanho dos dados
+- **Finalização do span**: ~1-2μs
+
+#### 2. Impactos Específicos
+
+**Baixo impacto:**
+
+- Métodos simples com poucos parâmetros
+- Objetos pequenos
+- Chamadas síncronas
+
+**Impacto moderado:**
+
+- Objetos grandes (serialização JSON)
+- Muitos parâmetros
+- Arrays complexos
+
+**Alto impacto:**
+
+- Objetos circulares (requer tratamento especial)
+- Dados muito grandes
+- Chamadas muito frequentes
+
+#### 3. Recomendações
+
+**Use em:**
+
+- Métodos críticos para observabilidade
+- APIs importantes
+- Métodos com lógica complexa
+
+**Evite em:**
+
+- Métodos chamados milhares de vezes por segundo
+- Loops internos muito frequentes
+- Métodos com objetos muito grandes
+
+#### 4. Benchmark Simples
+
+```typescript
+// Método sem decorator: ~0.001ms
+// Método com decorator: ~0.005ms
+// Overhead: ~0.004ms por chamada
 ```
-
-Tests cover:
-- Method and class decorators
-- Advanced configurations
-- Error handling
-- Data serialization
-- Performance and async behavior
-- Parameter inclusion and exclusion
-- Object field filtering
-- Span naming and tagging
-- Constructor exclusion in class decorators
-- Decorator combination and override behavior

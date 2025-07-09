@@ -13,19 +13,13 @@ export type TraceOptions = {
   excludeObjectFields?: Record<number, string[]>; // argument index -> object fields to exclude
 };
 
-export type TraceClassOptions = {
-  name?: string;
-  tags?: Record<string, any>;
-  includeResultAsTag?: boolean;
-};
-
 // Helper function to create the method wrapper
 function createMethodWrapper(
   originalMethod: Function,
   options: TraceOptions,
   className: string,
   methodName: string
-): Function & { __traced?: boolean; __classTraced?: boolean } {
+): Function {
   return function (this: any, ...args: any[]) {
     const spanName = options.name || `${className}.${methodName}`;
     const staticTags = options.tags || {};
@@ -140,47 +134,7 @@ function createMethodWrapper(
   };
 }
 
-// Class decorator
-export function TraceClass(options: TraceClassOptions = {}) {
-  return function (target: any) {
-    const className = target.name;
-    
-    // Apply tracing to all methods in the class
-    const methodNames = Object.getOwnPropertyNames(target.prototype).filter(
-      name => name !== 'constructor' && typeof target.prototype[name] === 'function'
-    );
-
-    methodNames.forEach(methodName => {
-      const originalMethod = target.prototype[methodName];
-      
-      // Create options for the method
-      const methodOptions: TraceOptions = {
-        name: options.name ? `${options.name}.${methodName}` : undefined,
-        tags: options.tags,
-        includeResultAsTag: options.includeResultAsTag,
-        includeParamsAsTags: false,
-      };
-
-      const wrappedMethod = createMethodWrapper(
-        originalMethod,
-        methodOptions,
-        className,
-        methodName
-      );
-      
-      // Apply the wrapper directly
-      Object.defineProperty(target.prototype, methodName, {
-        value: wrappedMethod,
-        writable: true,
-        configurable: true
-      });
-    });
-
-    return target;
-  };
-}
-
-// Method decorator (original)
+// Method decorator
 export function TraceMethod(options: TraceOptions = {}) {
   return function (
     target: any,
@@ -189,22 +143,12 @@ export function TraceMethod(options: TraceOptions = {}) {
   ) {
     const originalMethod = descriptor.value;
     
-    // If the method has already been decorated by the class, override
-    if (originalMethod.__classTraced) {
-      descriptor.value = createMethodWrapper(
-        originalMethod,
-        options,
-        target.constructor.name,
-        propertyKey
-      );
-    } else {
-      descriptor.value = createMethodWrapper(
-        originalMethod,
-        options,
-        target.constructor.name,
-        propertyKey
-      );
-    }
+    descriptor.value = createMethodWrapper(
+      originalMethod,
+      options,
+      target.constructor.name,
+      propertyKey
+    );
     
     return descriptor;
   };
